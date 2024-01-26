@@ -1,0 +1,66 @@
+name: Run Python Script
+
+on:
+  push:
+    branches:
+      - main  
+    paths : 
+      - "src/pages/**"
+      - "index2.astro"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+     - uses: actions/checkout@v3
+       with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+     - name: Get changed files
+       id: changed-files
+       run: |
+            if ${{ github.event_name == 'pull_request' }}; then
+            echo "changed_files=$(git diff --name-only -r HEAD^1 HEAD | xargs)" >> $GITHUB_OUTPUT
+            else
+              echo "changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | xargs)" >> $GITHUB_OUTPUT
+            fi 
+    
+
+     - name: Set up Python
+       uses: actions/setup-python@v2
+       with:
+          python-version: 3.x  # Change to the desired Python version
+
+     - name: Install Python dependencies
+       run: |
+          pip install beautifulsoup4
+          pip install requests
+     - name: Run Python script
+       run: |
+        for file in ${{ steps.changed-files.outputs.changed_files }}; do
+          echo $file
+          if [[ $file == "src/pages/blog"* ]]; then
+            python scrape.py $file 
+            python mapping.py $file
+          elif [[ $file == "index2.astro" ]]; then
+              python scrape.py $file 
+              python mapping.py $file
+          fi
+        done
+
+
+          
+     - name: Set Up Users info
+       run: |
+            git config --global user.email "amine.boukhari@tsplus.net"
+            git config --global user.name "amineBoukhari"
+
+     - name: push modifications
+       run :	 |   
+          if [[ -n $(git status -s) ]]; then
+              git add .
+              git commit -m "Update submodule and blog content"
+              git push
+          else
+              echo "No changes to commit."
+          fi
